@@ -3,7 +3,7 @@ pipeline {
     agent {
         docker {
             image 'docker:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/bin/docker'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
             reuseNode true
         }
     }
