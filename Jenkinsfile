@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
+        DOCKER_HOST = 'tcp://host.docker.internal:2375'
         REGISTRY = 'ghcr.io'
         IMAGE_NAME = 'IvettSL/mi-app'
-        DOCKER_HOST = 'tcp://host.docker.internal:2375'
         COMMIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
         BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d-%H%M%S', returnStdout: true).trim()
         IMAGE_TAG_LATEST = "${REGISTRY}/${IMAGE_NAME}:latest"
@@ -13,36 +13,56 @@ pipeline {
     }
 
     stages {
+        // ============================================
+        // STAGE 1: Preparación
+        // ============================================
         stage('Preparación') {
             steps {
                 echo '🔧 Preparando entorno...'
-                sh 'docker --version'
+                sh '''
+                    docker --version || echo "Docker no encontrado, usando host.docker.internal"
+                    echo "DOCKER_HOST: ${DOCKER_HOST}"
+                '''
             }
         }
 
-        stage('Instalación') {
+        // ============================================
+        // STAGE 2: Instalación de Node (Usando agente Node)
+        // ============================================
+        stage('Instalación y Pruebas') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    reuseNode true
+                }
+            }
             steps {
                 echo '📥 Instalando dependencias...'
                 sh 'npm ci'
-            }
-        }
-
-        stage('Pruebas') {
-            steps {
-                echo '🧪 Ejecutando pruebas...'
                 sh 'npm test'
             }
         }
 
+        // ============================================
+        // STAGE 3: Construcción Docker
+        // ============================================
         stage('Construcción Docker') {
             steps {
                 echo '🐳 Construyendo imagen Docker...'
                 script {
-                    docker.build("${IMAGE_TAG_COMMIT}")
+                    // Usar Docker directamente con sh en lugar de docker.build
+                    sh """
+                        docker build -t ${IMAGE_TAG_COMMIT} .
+                        docker tag ${IMAGE_TAG_COMMIT} ${IMAGE_TAG_LATEST}
+                        docker tag ${IMAGE_TAG_COMMIT} ${IMAGE_TAG_BUILD}
+                    """
                 }
             }
         }
 
+        // ============================================
+        // STAGE 4: Publicación
+        // ============================================
         stage('Publicación') {
             when {
                 branch 'main'
@@ -55,10 +75,6 @@ pipeline {
                     ]) {
                         sh """
                             echo \${GITHUB_TOKEN} | docker login ghcr.io -u \${GITHUB_USER} --password-stdin
-                        """
-                        sh """
-                            docker tag ${IMAGE_TAG_COMMIT} ${IMAGE_TAG_LATEST}
-                            docker tag ${IMAGE_TAG_COMMIT} ${IMAGE_TAG_BUILD}
                             docker push ${IMAGE_TAG_COMMIT}
                             docker push ${IMAGE_TAG_LATEST}
                             docker push ${IMAGE_TAG_BUILD}
@@ -68,6 +84,9 @@ pipeline {
             }
         }
 
+        // ============================================
+        // STAGE 5: Verificación
+        // ============================================
         stage('Verificación') {
             when {
                 branch 'main'
