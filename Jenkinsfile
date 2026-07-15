@@ -1,9 +1,16 @@
 pipeline {
-    agent any
+
+    agent {
+        docker {
+            image 'docker:latest'
+            args '-v /var/run/docker.sock:/var/run/docker.sock -v /usr/bin/docker:/usr/bin/docker'
+            reuseNode true
+        }
+    }
 
     environment {
         REGISTRY = 'ghcr.io'
-        IMAGE_NAME = '${GITHUB_USER}/mi-app'
+        IMAGE_NAME = 'IvettSL/mi-app'
         COMMIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
         BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d-%H%M%S', returnStdout: true).trim()
         IMAGE_TAG_LATEST = "${REGISTRY}/${IMAGE_NAME}:latest"
@@ -16,8 +23,7 @@ pipeline {
             steps {
                 echo '🔧 Preparando entorno...'
                 sh 'docker --version'
-                sh 'node --version'
-                sh 'npm --version'
+                sh 'which docker'
             }
         }
 
@@ -32,12 +38,6 @@ pipeline {
             steps {
                 echo '🧪 Ejecutando pruebas...'
                 sh 'npm test'
-            }
-            post {
-                always {
-                    // Publicar reportes de tests
-                    junit 'test-results/**/*.xml'
-                }
             }
         }
 
@@ -55,16 +55,14 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo '📤 Publicando imagen en GHCR...'
+                echo '📤 Publicando imagen...'
                 script {
                     withCredentials([
                         string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')
                     ]) {
-                        // Login a GHCR
                         sh """
                             echo \${GITHUB_TOKEN} | docker login ghcr.io -u \${GITHUB_USER} --password-stdin
                         """
-                        // Tag y push
                         sh """
                             docker tag ${IMAGE_TAG_COMMIT} ${IMAGE_TAG_LATEST}
                             docker tag ${IMAGE_TAG_COMMIT} ${IMAGE_TAG_BUILD}
@@ -105,7 +103,7 @@ pipeline {
         }
         cleanup {
             echo '🧹 Limpiando recursos...'
-            sh 'docker image prune -f'
+            sh 'docker image prune -f || true'
         }
     }
 }
