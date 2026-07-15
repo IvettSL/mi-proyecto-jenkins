@@ -1,16 +1,10 @@
 pipeline {
-    // ✅ Agente Docker - NO necesita tener Docker instalado en Jenkins
-    agent {
-        docker {
-            image 'docker:latest'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-            reuseNode true
-        }
-    }
+    agent any
 
     environment {
         REGISTRY = 'ghcr.io'
         IMAGE_NAME = 'IvettSL/mi-app'
+        DOCKER_HOST = 'tcp://host.docker.internal:2375'
         COMMIT_SHA = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
         BUILD_TIMESTAMP = sh(script: 'date +%Y%m%d-%H%M%S', returnStdout: true).trim()
         IMAGE_TAG_LATEST = "${REGISTRY}/${IMAGE_NAME}:latest"
@@ -29,8 +23,6 @@ pipeline {
         stage('Instalación') {
             steps {
                 echo '📥 Instalando dependencias...'
-                // Necesitamos Node.js para npm
-                sh 'apk add --no-cache nodejs npm'
                 sh 'npm ci'
             }
         }
