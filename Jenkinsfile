@@ -1,5 +1,5 @@
 pipeline {
-
+    // ✅ Agente Docker - NO necesita tener Docker instalado en Jenkins
     agent {
         docker {
             image 'docker:latest'
@@ -23,13 +23,14 @@ pipeline {
             steps {
                 echo '🔧 Preparando entorno...'
                 sh 'docker --version'
-                sh 'which docker'
             }
         }
 
         stage('Instalación') {
             steps {
                 echo '📥 Instalando dependencias...'
+                // Necesitamos Node.js para npm
+                sh 'apk add --no-cache nodejs npm'
                 sh 'npm ci'
             }
         }
